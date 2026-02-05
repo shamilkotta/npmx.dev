@@ -105,7 +105,6 @@
     "@e18e/eslint-plugin": "0.1.4",
     "@intlify/core-base": "11.2.8",
     "@npm/types": "2.1.0",
-    "@octokit/rest": "22.0.1",
     "@playwright/test": "1.58.1",
     "@resvg/resvg-js": "2.6.2",
     "@types/node": "24.10.9",

@@ -16,31 +16,21 @@
 import { writeFileSync, mkdirSync, existsSync } from 'node:fs'
 import { dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import type { FontWeight } from 'satori'
 import satori from 'satori'
 import { Resvg } from '@resvg/resvg-js'
-import { Octokit } from '@octokit/rest'
 
-// ============================================================================
-// Configuration
-// ============================================================================
-
-const REPO_OWNER = 'danielroe'
+const REPO_OWNER = 'npmx-dev'
 const REPO_NAME = 'npmx.dev'
 const OUTPUT_PATH = fileURLToPath(new URL('../.github/repo-og-image.png', import.meta.url))
 
-// Colors matching Package.vue
 const PRIMARY_COLOR = '#60a5fa'
 const BG_COLOR = '#050505'
 const TEXT_COLOR = '#fafafa'
 const SECONDARY_TEXT_COLOR = '#a3a3a3'
 
-// Image dimensions
 const WIDTH = 1280
 const HEIGHT = 640
-
-// ============================================================================
-// GitHub API
-// ============================================================================
 
 interface GitHubStats {
   stars: number
@@ -50,30 +40,39 @@ interface GitHubStats {
 }
 
 async function fetchGitHubStats(): Promise<GitHubStats> {
-  const octokit = new Octokit({
-    auth: process.env.GITHUB_TOKEN,
-  })
+  const headers: HeadersInit = {
+    'Accept': 'application/vnd.github.v3+json',
+    'User-Agent': 'npmx-og-image-generator',
+  }
 
-  // Fetch repo data (stars, forks, open issues)
-  const { data: repo } = await octokit.repos.get({
-    owner: REPO_OWNER,
-    repo: REPO_NAME,
-  })
+  if (process.env.GITHUB_TOKEN) {
+    headers['Authorization'] = `Bearer ${process.env.GITHUB_TOKEN}`
+  }
 
-  // Fetch contributors count
-  // Using per_page=1 and checking the Link header for total count
-  const contributorsResponse = await octokit.repos.listContributors({
-    owner: REPO_OWNER,
-    repo: REPO_NAME,
-    per_page: 1,
-    anon: 'true',
-  })
+  const [repoResponse, contributorsResponse] = await Promise.all([
+    fetch(`https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}`, { headers }),
+    fetch(
+      `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contributors?per_page=1&anon=true`,
+      { headers },
+    ),
+  ])
 
-  // Parse Link header to get total contributors count
-  let contributorsCount = contributorsResponse.data.length
-  const linkHeader = contributorsResponse.headers.link
+  if (!repoResponse.ok) {
+    throw new Error(`Failed to fetch repository: ${repoResponse.status} ${repoResponse.statusText}`)
+  }
+
+  if (!contributorsResponse.ok) {
+    throw new Error(
+      `Failed to fetch contributors: ${contributorsResponse.status} ${contributorsResponse.statusText}`,
+    )
+  }
+
+  const repo = await repoResponse.json()
+  const contributorsData = await contributorsResponse.json()
+  let contributorsCount = contributorsData.length
+
+  const linkHeader = contributorsResponse.headers.get('link')
   if (linkHeader) {
-    // Link header format: <url>; rel="next", <url?page=X>; rel="last"
     const lastMatch = linkHeader.match(/[?&]page=(\d+)[^>]*>;\s*rel="last"/)
     if (lastMatch) {
       contributorsCount = parseInt(lastMatch[1], 10)
@@ -88,10 +87,6 @@ async function fetchGitHubStats(): Promise<GitHubStats> {
   }
 }
 
-// ============================================================================
-// Formatting
-// ============================================================================
-
 function formatNumber(num: number): string {
   return Intl.NumberFormat('en', {
     notation: 'compact',
@@ -99,11 +94,6 @@ function formatNumber(num: number): string {
   }).format(num)
 }
 
-// ============================================================================
-// SVG Icons (matching Package.vue style)
-// ============================================================================
-
-// Package icon from Package.vue lines 83-99
 function PackageIcon() {
   return {
     type: 'svg',
@@ -131,7 +121,6 @@ function PackageIcon() {
   }
 }
 
-// Star icon from Package.vue lines 166-177
 function StarIcon() {
   return {
     type: 'svg',
@@ -154,56 +143,45 @@ function StarIcon() {
   }
 }
 
-// Contributors/People icon (similar style to Package.vue icons)
 function PeopleIcon() {
   return {
     type: 'svg',
     props: {
       xmlns: 'http://www.w3.org/2000/svg',
-      viewBox: '0 0 32 32',
-      width: 32,
-      height: 32,
+      viewBox: '0 0 24 24',
+      width: 28,
+      height: 28,
       fill: 'none',
+      stroke: PRIMARY_COLOR,
+      strokeWidth: 2,
+      strokeLinecap: 'round',
+      strokeLinejoin: 'round',
       style: { opacity: 0.6 },
       children: [
         {
+          type: 'path',
+          props: {
+            d: 'M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2',
+          },
+        },
+        {
           type: 'circle',
           props: {
-            cx: 10,
-            cy: 8,
+            cx: 9,
+            cy: 7,
             r: 4,
-            stroke: PRIMARY_COLOR,
-            strokeWidth: 2.5,
           },
         },
         {
           type: 'path',
           props: {
-            d: 'M2 26v-2a6 6 0 0 1 6-6h4a6 6 0 0 1 6 6v2',
-            stroke: PRIMARY_COLOR,
-            strokeWidth: 2.5,
-            strokeLinecap: 'round',
-          },
-        },
-        {
-          type: 'circle',
-          props: {
-            cx: 24,
-            cy: 10,
-            r: 3,
-            stroke: PRIMARY_COLOR,
-            strokeWidth: 2,
-            style: { opacity: 0.7 },
+            d: 'M22 21v-2a4 4 0 0 0-3-3.87',
           },
         },
         {
           type: 'path',
           props: {
-            d: 'M22 26v-1a5 5 0 0 1 3-4.5',
-            stroke: PRIMARY_COLOR,
-            strokeWidth: 2,
-            strokeLinecap: 'round',
-            style: { opacity: 0.7 },
+            d: 'M16 3.13a4 4 0 0 1 0 7.75',
           },
         },
       ],
@@ -211,7 +189,6 @@ function PeopleIcon() {
   }
 }
 
-// Issues icon (circle with dot, similar to GitHub issues)
 function IssuesIcon() {
   return {
     type: 'svg',
@@ -247,74 +224,30 @@ function IssuesIcon() {
   }
 }
 
-// Fork icon (git branch style)
 function ForkIcon() {
   return {
     type: 'svg',
     props: {
       xmlns: 'http://www.w3.org/2000/svg',
-      viewBox: '0 0 32 32',
-      width: 32,
-      height: 32,
+      viewBox: '0 0 24 24',
+      width: 28,
+      height: 28,
       fill: 'none',
+      stroke: PRIMARY_COLOR,
+      strokeWidth: 2,
+      strokeLinecap: 'round',
+      strokeLinejoin: 'round',
       style: { opacity: 0.6 },
       children: [
-        {
-          type: 'circle',
-          props: {
-            cx: 16,
-            cy: 6,
-            r: 3,
-            stroke: PRIMARY_COLOR,
-            strokeWidth: 2.5,
-          },
-        },
-        {
-          type: 'circle',
-          props: {
-            cx: 8,
-            cy: 26,
-            r: 3,
-            stroke: PRIMARY_COLOR,
-            strokeWidth: 2.5,
-          },
-        },
-        {
-          type: 'circle',
-          props: {
-            cx: 24,
-            cy: 26,
-            r: 3,
-            stroke: PRIMARY_COLOR,
-            strokeWidth: 2.5,
-          },
-        },
-        {
-          type: 'path',
-          props: {
-            d: 'M16 9v6c0 4-8 4-8 8',
-            stroke: PRIMARY_COLOR,
-            strokeWidth: 2.5,
-            strokeLinecap: 'round',
-          },
-        },
-        {
-          type: 'path',
-          props: {
-            d: 'M16 15c0 4 8 4 8 8',
-            stroke: PRIMARY_COLOR,
-            strokeWidth: 2.5,
-            strokeLinecap: 'round',
-          },
-        },
+        { type: 'circle', props: { cx: 6, cy: 6, r: 3 } },
+        { type: 'circle', props: { cx: 18, cy: 6, r: 3 } },
+        { type: 'circle', props: { cx: 12, cy: 20, r: 3 } },
+        { type: 'path', props: { d: 'M6 9v3a3 3 0 0 0 3 3h6a3 3 0 0 0 3-3V9' } },
+        { type: 'path', props: { d: 'M12 15v2' } },
       ],
     },
   }
 }
-
-// ============================================================================
-// Image Template (matching Package.vue exactly)
-// ============================================================================
 
 function createTemplate(stats: GitHubStats) {
   return {
@@ -326,7 +259,7 @@ function createTemplate(stats: GitHubStats) {
         justifyContent: 'center',
         width: '100%',
         height: '100%',
-        padding: '80px',
+        padding: '80px 80px 80px 120px',
         backgroundColor: BG_COLOR,
         color: TEXT_COLOR,
         fontFamily: 'Inter',
@@ -334,7 +267,6 @@ function createTemplate(stats: GitHubStats) {
         overflow: 'hidden',
       },
       children: [
-        // Background circle (sharp, no blur)
         {
           type: 'div',
           props: {
@@ -349,7 +281,6 @@ function createTemplate(stats: GitHubStats) {
             },
           },
         },
-        // Content wrapper - moved up with marginTop
         {
           type: 'div',
           props: {
@@ -361,7 +292,6 @@ function createTemplate(stats: GitHubStats) {
               marginTop: -40,
             },
             children: [
-              // Logo box with package icon (above the title)
               {
                 type: 'div',
                 props: {
@@ -379,7 +309,6 @@ function createTemplate(stats: GitHubStats) {
                   children: [PackageIcon()],
                 },
               },
-              // Title: ./npmx
               {
                 type: 'h1',
                 props: {
@@ -404,7 +333,6 @@ function createTemplate(stats: GitHubStats) {
                   ],
                 },
               },
-              // Tagline: "A better browser for the [npm registry]"
               {
                 type: 'div',
                 props: {
@@ -424,7 +352,6 @@ function createTemplate(stats: GitHubStats) {
                         children: 'A better browser for the',
                       },
                     },
-                    // Badge for "npm registry" with glow effect
                     {
                       type: 'span',
                       props: {
@@ -443,7 +370,6 @@ function createTemplate(stats: GitHubStats) {
                   ],
                 },
               },
-              // GitHub Stats row
               {
                 type: 'div',
                 props: {
@@ -457,7 +383,6 @@ function createTemplate(stats: GitHubStats) {
                     marginTop: 16,
                   },
                   children: [
-                    // Stars
                     {
                       type: 'span',
                       props: {
@@ -465,7 +390,6 @@ function createTemplate(stats: GitHubStats) {
                         children: [StarIcon(), formatNumber(stats.stars)],
                       },
                     },
-                    // Contributors
                     {
                       type: 'span',
                       props: {
@@ -473,7 +397,6 @@ function createTemplate(stats: GitHubStats) {
                         children: [PeopleIcon(), formatNumber(stats.contributors)],
                       },
                     },
-                    // Issues
                     {
                       type: 'span',
                       props: {
@@ -481,7 +404,6 @@ function createTemplate(stats: GitHubStats) {
                         children: [IssuesIcon(), formatNumber(stats.openIssues)],
                       },
                     },
-                    // Forks
                     {
                       type: 'span',
                       props: {
@@ -500,25 +422,18 @@ function createTemplate(stats: GitHubStats) {
   }
 }
 
-// ============================================================================
-// Font Loading
-// ============================================================================
-
 interface FontData {
   name: string
   data: ArrayBuffer
-  weight: number
+  weight: FontWeight
   style: 'normal' | 'italic'
 }
 
 async function loadFonts(): Promise<FontData[]> {
-  // Fetch Inter font from Google Fonts API
-  // Using a user-agent that returns TTF format (not WOFF2)
   const API_URL = 'https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap'
 
   const cssResponse = await fetch(API_URL, {
     headers: {
-      // This user-agent gets TTF format from Google Fonts
       'User-Agent':
         'Mozilla/5.0 (Macintosh; U; Intel Mac OS X 10_6_8; de-at) AppleWebKit/533.21.1 (KHTML, like Gecko) Version/5.0.5 Safari/533.21.1',
     },
@@ -530,7 +445,6 @@ async function loadFonts(): Promise<FontData[]> {
 
   const css = await cssResponse.text()
 
-  // Extract font URLs from CSS
   const fontUrlRegex = /src:\s*url\(([^)]+)\)\s*format\(['"]?truetype['"]?\)/g
   const weightRegex = /font-weight:\s*(\d+)/
 
@@ -539,7 +453,7 @@ async function loadFonts(): Promise<FontData[]> {
 
   for (const block of fontBlocks) {
     const urlMatch = fontUrlRegex.exec(block)
-    fontUrlRegex.lastIndex = 0 // Reset regex state
+    fontUrlRegex.lastIndex = 0
 
     if (urlMatch) {
       const fontUrl = urlMatch[1]
@@ -554,7 +468,7 @@ async function loadFonts(): Promise<FontData[]> {
       fonts.push({
         name: 'Inter',
         data: await fontResponse.arrayBuffer(),
-        weight,
+        weight: weight as FontWeight,
         style: 'normal',
       })
     }
@@ -567,34 +481,26 @@ async function loadFonts(): Promise<FontData[]> {
   return fonts
 }
 
-// ============================================================================
-// Main
-// ============================================================================
-
 async function main() {
-  console.log('🖼️  Generating OG image for npmx.dev repository...')
+  console.log('Generating OG image for npmx.dev repository...')
 
-  // Fetch GitHub stats
-  console.log('📊 Fetching GitHub stats...')
+  console.log('Fetching GitHub stats...')
   const stats = await fetchGitHubStats()
   console.log(`   Stars: ${stats.stars}`)
   console.log(`   Contributors: ${stats.contributors}`)
   console.log(`   Open Issues: ${stats.openIssues}`)
   console.log(`   Forks: ${stats.forks}`)
 
-  // Load fonts
-  console.log('🔤 Loading fonts...')
+  console.log('Loading fonts...')
   const fonts = await loadFonts()
 
-  // Generate SVG with Satori
-  console.log('🎨 Generating image...')
+  console.log('Generating image...')
   const svg = await satori(createTemplate(stats), {
     width: WIDTH,
     height: HEIGHT,
     fonts,
   })
 
-  // Convert SVG to PNG with resvg
   const resvg = new Resvg(svg, {
     fitTo: {
       mode: 'width',
@@ -604,15 +510,13 @@ async function main() {
   const pngData = resvg.render()
   const pngBuffer = pngData.asPng()
 
-  // Ensure output directory exists
   const outputDir = dirname(OUTPUT_PATH)
   if (!existsSync(outputDir)) {
     mkdirSync(outputDir, { recursive: true })
   }
 
-  // Write PNG file
   writeFileSync(OUTPUT_PATH, pngBuffer)
-  console.log(`✅ OG image saved to ${OUTPUT_PATH}`)
+  console.log(`OG image saved to ${OUTPUT_PATH}`)
 }
 
 main().catch(error => {
