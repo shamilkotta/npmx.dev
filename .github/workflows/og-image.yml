@@ -1,0 +1,42 @@
+name: og-image
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  generate:
+    name: 🖼️ Generate OG Image
+    runs-on: ubuntu-24.04-arm
+
+    steps:
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+
+      - uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6.2.0
+        with:
+          node-version: lts/*
+
+      - uses: pnpm/action-setup@1e1c8eafbd745f64b1ef30a7d7ed7965034c486c # 1e1c8eafbd745f64b1ef30a7d7ed7965034c486c
+        name: 🟧 Install pnpm
+        with:
+          cache: true
+
+      - name: 📦 Install dependencies (root only, no scripts)
+        run: pnpm install --filter . --ignore-scripts
+
+      - name: 🖼️ Generate OG image
+        run: node scripts/generate-og-image.ts
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 📝 Commit and push if changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add .github/repo-og-image.png
+          git diff --staged --quiet || git commit -m "chore: update repository OG image [skip ci]"
+          git push
