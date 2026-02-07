@@ -24,6 +24,8 @@ export default defineNuxtModule({
           'package/[org]/[name]',
           'package/[org]/[name]/v',
           'package/[org]/[name]/v/[version]',
+          'package-docs/[name]/v',
+          'package-docs/[org]/[name]/v',
           '',
         ]) {
           const outputPath = resolve(

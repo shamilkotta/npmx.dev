@@ -115,8 +115,14 @@ export default defineNuxtConfig({
     '/package/:org/:name/v/:version': { isr: getISRConfig(60, true) },
     // infinite cache (versioned - doesn't change)
     '/package-code/**': { isr: true, cache: { maxAge: 365 * 24 * 60 * 60 } },
-    '/package-docs/:name/v/**': { isr: true, cache: { maxAge: 365 * 24 * 60 * 60 } },
-    '/package-docs/:org/:name/v/**': { isr: true, cache: { maxAge: 365 * 24 * 60 * 60 } },
+    '/package-docs/:name/v/**': {
+      isr: getISRConfig(false, true),
+      cache: { maxAge: 365 * 24 * 60 * 60 },
+    },
+    '/package-docs/:org/:name/v/**': {
+      isr: getISRConfig(false, true),
+      cache: { maxAge: 365 * 24 * 60 * 60 },
+    },
     // static pages
     '/': { prerender: true },
     '/200.html': { prerender: true },
@@ -295,12 +301,12 @@ export default defineNuxtConfig({
   },
 })
 
-function getISRConfig(expirationSeconds: number, fallback = false) {
+function getISRConfig(expirationSeconds: number | false, fallback = false) {
   if (fallback) {
     return {
       expiration: expirationSeconds,
       fallback: 'spa.prerender-fallback.html',
-    } as { expiration: number }
+    } as { expiration: number | false }
   }
   return {
     expiration: expirationSeconds,
